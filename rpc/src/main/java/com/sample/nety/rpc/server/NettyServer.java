@@ -47,7 +47,7 @@ public class NettyServer implements InitializingBean {
         }
     }
 
-    public void start(ServiceRegistry registry) {
+    public void start(ServiceRegistry registry) throws InterruptedException {
         // Thread pool responsible for handling client connections
         bossGroup = new NioEventLoopGroup();
         // Thread pool responsible for processing read and write operations
@@ -57,13 +57,14 @@ public class NettyServer implements InitializingBean {
         serverBootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
                 .option(ChannelOption.SO_BACKLOG, 1024)
+                .option(ChannelOption.SO_KEEPALIVE, true)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
                         // codec
-                        pipeline.addLast(new RpcEncoder(RpcResponse.class, new JSONSerializer()));
                         pipeline.addLast(new RpcDecoder(RpcRequest.class, new JSONSerializer()));
+                        pipeline.addLast(new RpcEncoder(RpcResponse.class, new JSONSerializer()));
                         // request processor
                         pipeline.addLast(serverHandler);
                     }
@@ -77,7 +78,7 @@ public class NettyServer implements InitializingBean {
      * @param serverBootstrap
      * @param serverPort
      */
-    public void bind(final ServerBootstrap serverBootstrap, int serverPort) {
+    public void bind(final ServerBootstrap serverBootstrap, int serverPort) throws InterruptedException {
         serverBootstrap.bind(serverPort).addListener(future -> {
             if (future.isSuccess()) {
                 log.info("port [{}] Binding success", serverPort);
@@ -85,7 +86,7 @@ public class NettyServer implements InitializingBean {
                 log.error("port [{}] Binding failed", serverPort);
                 bind(serverBootstrap, serverPort + 1);
             }
-        });
+        }).sync();
     }
 
     @PreDestroy
